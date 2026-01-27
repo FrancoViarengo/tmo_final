@@ -1,0 +1,24 @@
+{
+    "crons": [
+        {
+            "path": "/api/cron/daily-import",
+            "schedule": "0 2 * * *"
+        },
+        {
+            "path": "/api/cron/daily-import",
+            "schedule": "0 3 * * *"
+        },
+        {
+            "path": "/api/cron/daily-import",
+            "schedule": "0 4 * * *"
+        },
+        {
+            "path": "/api/cron/daily-import",
+            "schedule": "0 5 * * *"
+        },
+        {
+            "path": "/api/cron/daily-import",
+            "schedule": "0 6 * * *"
+        }
+    ]
+}

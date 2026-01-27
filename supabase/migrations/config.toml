@@ -1,0 +1,11 @@
+project_id = "chbcamaltnxqpmmffvjx"
+
+[db]
+host = "db.chbcamaltnxqpmmffvjx.supabase.co"
+port = 5432
+user = "postgres"
+password = "wiRtXngr8tWKnbKU"
+dbname = "postgres"
+
+[api]
+enabled = true

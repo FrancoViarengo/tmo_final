@@ -1,0 +1,40 @@
+{
+  "name": "neomanga",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port 4001",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "dev:3000": "next dev --port 3000"
+  },
+  "dependencies": {
+    "@ducanh2912/next-pwa": "^10.2.9",
+    "@supabase/auth-helpers-nextjs": "^0.10.0",
+    "@supabase/ssr": "^0.8.0",
+    "@supabase/supabase-js": "^2.43.4",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
+    "dotenv": "^17.2.3",
+    "framer-motion": "^11.2.10",
+    "lucide-react": "^0.379.0",
+    "next": "14.2.33",
+    "react": "^18",
+    "react-dom": "^18",
+    "sonner": "^2.0.7",
+    "tailwind-merge": "^2.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "autoprefixer": "^10.4.20",
+    "baseline-browser-mapping": "^2.9.18",
+    "eslint": "^8",
+    "eslint-config-next": "14.2.33",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.13",
+    "typescript": "^5"
+  }
+}

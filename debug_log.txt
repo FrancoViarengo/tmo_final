@@ -1,0 +1,21 @@
+--- DEBUG REPORT ---
+
+[JJK DEBUG]
+Found Series: Jujutsu Kaisen (mangadex-c52b2ce3-7f95-469c-96b0-479524fb7a1a)
+Testing Chapter 3
+Source: mangadex
+External ID: 180cf90b-4749-4596-bf92-46913b40fa9b
+Fetching MD: https://api.mangadex.org/at-home/server/180cf90b-4749-4596-bf92-46913b40fa9b
+Response Status: 200 OK
+BaseURL: https://cmdxd98sb0x3yprd.mangadex.network
+Files found: 0
+WARNING: 0 files found. Dumping full JSON:
+{
+  "result": "ok",
+  "baseUrl": "https://cmdxd98sb0x3yprd.mangadex.network",
+  "chapter": {
+    "hash": "",
+    "data": [],
+    "dataSaver": []
+  }
+}
