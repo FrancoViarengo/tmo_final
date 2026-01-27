@@ -40,3 +40,23 @@ export const requireSession = async () => {
 
   return { session, supabase };
 };
+
+/**
+ * Ensures the logged-in user has 'admin' or 'superadmin' role.
+ */
+export const requireAdmin = async () => {
+  const { session, supabase } = await requireSession();
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', session.user.id)
+    .single();
+
+  const role = (profile as any)?.role;
+  if (role !== 'admin' && role !== 'superadmin') {
+    throw new Error('Forbidden: Admins only');
+  }
+
+  return { session, supabase, profile };
+};

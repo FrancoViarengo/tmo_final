@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-// Initialize Supabase Admin Client
 const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -12,161 +11,137 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
     try {
-        // 1. Verify Authentication
+        // 1. Auth Guard
         const authHeader = request.headers.get('authorization');
         if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        // 2. Determine Series to Process (Priority: Local Updates -> New Popular)
-        const BATCH_SIZE = 10;
-        let seriesList: any[] = [];
+        // 2. DISCOVERY: Seed the queue if it's low
+        const { count: queueCount } = await (supabaseAdmin.from('sync_queue') as any)
+            .select('*', { count: 'exact', head: true })
+            .eq('status', 'pending');
 
-        // 2a. Fetch "Stale" Local Series (Oldest updated first) to repair/update
-        // We fetch their 'external_id' which is the MangaDex ID
-        const { data: localSeries } = await (supabaseAdmin.from('series') as any)
-            .select('external_id, updated_at')
-            .eq('source', 'mangadex')
-            .order('updated_at', { ascending: true })
-            .limit(BATCH_SIZE);
+        if ((queueCount || 0) < 20) {
+            console.log("Queue low, seeding with popular series...");
+            const offset = Math.floor(Math.random() * 500);
+            const popularRes = await fetch(`https://api.mangadex.org/manga?limit=50&offset=${offset}&availableTranslatedLanguage[]=es&order[followedCount]=desc&contentRating[]=safe&contentRating[]=suggestive`);
 
-        const localIds = localSeries?.map((s: any) => s.external_id) || [];
-
-        // Fetch metadata for these local IDs from MangaDex to get fresh info
-        if (localIds.length > 0) {
-            const idsQuery = localIds.map((id: string) => `ids[]=${id}`).join('&');
-            const localMangaRes = await fetch(`https://api.mangadex.org/manga?limit=${BATCH_SIZE}&includes[]=cover_art&includes[]=author&${idsQuery}`);
-            if (localMangaRes.ok) {
-                const localMangaData = await localMangaRes.json();
-                seriesList = [...seriesList, ...localMangaData.data];
-            }
-        }
-
-        // 2b. Fill remaining slots with New/Popular Series
-        const slotsRemaining = BATCH_SIZE - seriesList.length;
-        if (slotsRemaining > 0) {
-            // Random offset to fetch different series each time (0 to 200)
-            const offset = Math.floor(Math.random() * 200);
-            const popularUrl = `https://api.mangadex.org/manga?limit=${slotsRemaining}&offset=${offset}&includes[]=cover_art&includes[]=author&order[followedCount]=desc&contentRating[]=safe&contentRating[]=suggestive&availableTranslatedLanguage[]=es&availableTranslatedLanguage[]=es-la`;
-
-            const popularRes = await fetch(popularUrl);
             if (popularRes.ok) {
                 const popularData = await popularRes.json();
-                // Filter out duplicates if any random popular one is already in local list
-                const newSeries = popularData.data.filter((s: any) => !localIds.includes(s.id));
-                seriesList = [...seriesList, ...newSeries];
+                const seeds = popularData.data.map((m: any) => ({
+                    external_id: m.id,
+                    type: 'series',
+                    priority: 5,
+                    metadata: { title: m.attributes.title.en || Object.values(m.attributes.title)[0] }
+                }));
+                await (supabaseAdmin.from('sync_queue') as any).upsert(seeds, { onConflict: 'external_id', ignoreDuplicates: true });
             }
         }
 
+        // 3. PROCESSOR: Pick a batch of tasks
+        const BATCH_SIZE = 5;
+        const { data: tasks, error: taskErr } = await (supabaseAdmin.from('sync_queue') as any)
+            .select('*')
+            .eq('status', 'pending')
+            .order('priority', { ascending: false })
+            .order('created_at', { ascending: true })
+            .limit(BATCH_SIZE);
 
-        let processedCount = 0;
-        const errors: any[] = [];
+        if (taskErr || !tasks || tasks.length === 0) {
+            return NextResponse.json({ success: true, message: "Queue empty" });
+        }
 
-        // 3. Process each series
-        for (const manga of seriesList) {
+        const results = [];
+
+        for (const task of tasks) {
             try {
-                const attr = manga.attributes;
-                const mangaId = manga.id;
+                // Mark as processing
+                await (supabaseAdmin.from('sync_queue') as any).update({ status: 'processing', attempts: task.attempts + 1 }).eq('id', task.id);
 
-                // Cover URL
-                const coverRel = manga.relationships.find((r: any) => r.type === 'cover_art');
-                const fileName = coverRel?.attributes?.fileName;
-                const coverUrl = fileName
-                    ? `https://uploads.mangadex.org/covers/${mangaId}/${fileName}.256.jpg`
-                    : null;
+                if (task.type === 'series') {
+                    // Sync Metadata & Create Chapter tasks
+                    const mangaRes = await fetch(`https://api.mangadex.org/manga/${task.external_id}?includes[]=cover_art`);
+                    if (!mangaRes.ok) throw new Error(`MD Error: ${mangaRes.status}`);
 
-                // Upsert Series
-                const { data: series, error: seriesError } = await (supabaseAdmin.from('series') as any)
-                    .upsert({
-                        title: attr.title.en || Object.values(attr.title)[0] || 'Sin título',
+                    const m = (await mangaRes.json()).data;
+                    const attr = m.attributes;
+                    const coverRel = m.relationships.find((r: any) => r.type === 'cover_art');
+                    const coverUrl = coverRel ? `https://uploads.mangadex.org/covers/${m.id}/${coverRel.attributes.fileName}.256.jpg` : null;
+
+                    const { data: series } = await (supabaseAdmin.from('series') as any).upsert({
+                        title: attr.title.en || Object.values(attr.title)[0],
                         description: attr.description.es || attr.description.en || '',
-                        slug: `mangadex-${mangaId}`,
-                        type: 'Manga',
-                        status: attr.status,
+                        slug: `mangadex-${m.id}`,
                         source: 'mangadex',
-                        external_id: mangaId,
+                        external_id: m.id,
                         external_thumbnail: coverUrl,
-                        updated_at: new Date().toISOString(),
-                    }, { onConflict: 'slug' })
-                    .select()
-                    .single();
+                        updated_at: new Date().toISOString()
+                    }, { onConflict: 'external_id' }).select().single();
 
-                if (seriesError) throw seriesError;
+                    // Queue chapter sync starting from offset 0
+                    await (supabaseAdmin.from('sync_queue') as any).upsert({
+                        external_id: m.id,
+                        type: 'chapters',
+                        priority: 10, // Higher priority for existing series
+                        metadata: { offset: 0, internal_id: series.id }
+                    }, { onConflict: 'external_id, type' });
 
-                // 4. Fetch ALL Chapters (Spanish) with Pagination
-                let chapterOffset = 0;
-                let hasMoreChapters = true;
-                const CHAPTER_LIMIT = 500; // MangaDex Max per request
+                    await (supabaseAdmin.from('sync_queue') as any).update({ status: 'completed' }).eq('id', task.id);
+                    results.push({ id: task.external_id, status: 'synced_meta' });
 
-                while (hasMoreChapters) {
-                    const feedUrl = `https://api.mangadex.org/manga/${mangaId}/feed?translatedLanguage[]=es&translatedLanguage[]=es-la&limit=${CHAPTER_LIMIT}&offset=${chapterOffset}&order[chapter]=desc&includes[]=scanlation_group`;
-                    const chaptersRes = await fetch(feedUrl);
+                } else if (task.type === 'chapters') {
+                    // Sync ONE page of chapters
+                    const offset = task.metadata?.offset || 0;
+                    const limit = 100;
+                    const internalId = task.metadata?.internal_id;
 
-                    if (!chaptersRes.ok) {
-                        console.error(`Failed to fetch chapters for ${mangaId} (offset ${chapterOffset}): ${chaptersRes.status}`);
-                        errors.push({ id: mangaId, error: `Chapter Fetch Failed: ${chaptersRes.status}` });
-                        break;
-                    }
+                    const feedRes = await fetch(`https://api.mangadex.org/manga/${task.external_id}/feed?translatedLanguage[]=es&translatedLanguage[]=es-la&limit=${limit}&offset=${offset}&order[chapter]=desc`);
+                    if (!feedRes.ok) throw new Error(`MD Feed Error: ${feedRes.status}`);
 
-                    const chaptersData = await chaptersRes.json();
-                    const chapters = chaptersData.data;
+                    const feedData = await feedRes.json();
+                    const chapters = feedData.data || [];
 
-                    if (!chapters || chapters.length === 0) {
-                        hasMoreChapters = false;
-                        continue;
-                    }
+                    if (chapters.length > 0) {
+                        const toInsert = chapters.map((ch: any) => ({
+                            series_id: internalId,
+                            chapter_number: parseFloat(ch.attributes.chapter) || 0,
+                            title: ch.attributes.title,
+                            source: 'mangadex',
+                            external_id: ch.id,
+                            created_at: ch.attributes.publishAt
+                        }));
 
-                    // Batch insert this page of chapters
-                    const chaptersToInsert = chapters.map((ch: any) => ({
-                        series_id: series.id,
-                        title: ch.attributes.title,
-                        chapter_number: parseFloat(ch.attributes.chapter) || 0,
-                        source: 'mangadex',
-                        external_id: ch.id,
-                        created_at: ch.attributes.publishAt,
-                    }));
+                        await (supabaseAdmin.from('chapters') as any).upsert(toInsert, { onConflict: 'external_id', ignoreDuplicates: true });
 
-                    if (chaptersToInsert.length > 0) {
-                        const { error: batchError } = await (supabaseAdmin.from('chapters') as any)
-                            .upsert(chaptersToInsert, {
-                                onConflict: 'series_id, chapter_number',
-                                ignoreDuplicates: true
-                            });
-
-                        if (batchError) {
-                            console.error(`Batch insert error for manga ${mangaId} page ${chapterOffset}:`, batchError);
-                            errors.push({ id: mangaId, error: `DB Insert Error: ${batchError.message}` });
+                        if (chapters.length === limit) {
+                            // More chapters exist, update queue with new offset
+                            await (supabaseAdmin.from('sync_queue') as any).update({
+                                metadata: { ...task.metadata, offset: offset + limit },
+                                status: 'pending' // Put back to pending for next cycle
+                            }).eq('id', task.id);
+                        } else {
+                            await (supabaseAdmin.from('sync_queue') as any).update({ status: 'completed' }).eq('id', task.id);
                         }
-                    }
-
-                    // Check if we need to fetch more
-                    if (chapters.length < CHAPTER_LIMIT) {
-                        hasMoreChapters = false;
+                        results.push({ id: task.external_id, status: `synced_chapters_page_${offset / limit}` });
                     } else {
-                        chapterOffset += CHAPTER_LIMIT;
-                        await new Promise(resolve => setTimeout(resolve, 100));
+                        await (supabaseAdmin.from('sync_queue') as any).update({ status: 'completed' }).eq('id', task.id);
+                        results.push({ id: task.external_id, status: 'no_more_chapters' });
                     }
                 }
 
-                processedCount++;
+                await new Promise(r => setTimeout(r, 200));
 
-                // Rate Limiting
-                await new Promise(resolve => setTimeout(resolve, 250));
-
-            } catch (err: any) {
-                console.error(`Error processing manga ${manga.id}:`, err);
-                errors.push({ id: manga.id, error: err.message });
+            } catch (e: any) {
+                console.error(`Error in task ${task.id}:`, e);
+                await (supabaseAdmin.from('sync_queue') as any).update({ status: 'error', last_error: e.message }).eq('id', task.id);
             }
         }
 
-        return NextResponse.json({
-            success: true,
-            processed: processedCount,
-            errors: errors.length > 0 ? errors : undefined,
-        });
+        return NextResponse.json({ success: true, processed: results });
 
     } catch (error: any) {
-        console.error('Cron job failed:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
+
