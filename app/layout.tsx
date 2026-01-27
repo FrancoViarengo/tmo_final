@@ -3,6 +3,7 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import { Toaster } from "sonner";
+import NeoSyncSilentTrigger from "@/components/NeoSyncSilentTrigger";
 
 const geistSans = Inter({
   variable: "--font-geist-sans",
@@ -86,6 +87,7 @@ export default function RootLayout({
           </footer>
           {/* Toaster for Notifications */}
           <Toaster richColors position="top-right" theme="dark" />
+          <NeoSyncSilentTrigger />
         </div>
       </body>
     </html>
