@@ -141,6 +141,7 @@ export default function Navbar() {
                                             <div className="py-2 bg-orange-500/5">
                                                 <div className="px-4 py-1 text-xs font-bold text-orange-500 uppercase tracking-wider">Panel</div>
                                                 <Link href="/upload" className="block px-4 py-2 text-sm text-gray-300 hover:bg-white/5 hover:text-white">Subir Capítulo</Link>
+                                                <Link href="/admin/neosync" className="block px-4 py-2 text-sm text-orange-400 hover:bg-white/5 hover:text-orange-300 font-bold">NeoSync Dashboard</Link>
                                                 <Link href="/admin/uploads" className="block px-4 py-2 text-sm text-gray-300 hover:bg-white/5 hover:text-white">Moderación</Link>
                                                 <Link href="/admin/users" className="block px-4 py-2 text-sm text-gray-300 hover:bg-white/5 hover:text-white">Usuarios</Link>
                                             </div>
