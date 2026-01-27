@@ -81,6 +81,24 @@ export default function NeoSyncDashboard() {
         }
     };
 
+    const runWorker = async () => {
+        setIsSyncing(true);
+        try {
+            const res = await fetch("/api/admin/neosync/tick", { method: "POST" });
+            const json = await res.json();
+            if (res.ok) {
+                toast.success("Ciclo completado con éxito");
+                fetchData();
+            } else {
+                toast.error(json.error || "Error al ejecutar worker");
+            }
+        } catch (err) {
+            toast.error("Error de conexión");
+        } finally {
+            setIsSyncing(false);
+        }
+    };
+
     if (loading) return <div className="p-8 text-gray-400">Cargando motor...</div>;
 
     return (
@@ -148,6 +166,13 @@ export default function NeoSyncDashboard() {
                     <div className="glass-card p-6 rounded-2xl border border-white/10 bg-[#1f1f1f]">
                         <h2 className="text-sm font-bold text-white mb-4 uppercase tracking-widest">Acciones Rápidas</h2>
                         <button
+                            disabled={isSyncing}
+                            onClick={runWorker}
+                            className="w-full py-2 bg-orange-500/10 border border-orange-500/20 rounded-lg text-sm font-bold text-orange-400 hover:bg-orange-500/20 transition-colors mb-3"
+                        >
+                            {isSyncing ? "Ejecutando..." : "Ejecutar Ciclo de Sincronización"}
+                        </button>
+                        <button
                             onClick={clearCompleted}
                             className="w-full py-2 border border-white/10 rounded-lg text-sm font-medium text-gray-400 hover:bg-white/5 transition-colors"
                         >
@@ -191,12 +216,12 @@ export default function NeoSyncDashboard() {
                                             </td>
                                             <td className="px-4 py-3">
                                                 <span className={`flex items-center gap-1.5 ${task.status === 'completed' ? 'text-green-400' :
-                                                        task.status === 'processing' ? 'text-orange-400 animate-pulse' :
-                                                            task.status === 'error' ? 'text-red-400' : 'text-gray-400'
+                                                    task.status === 'processing' ? 'text-orange-400 animate-pulse' :
+                                                        task.status === 'error' ? 'text-red-400' : 'text-gray-400'
                                                     }`}>
                                                     <div className={`w-1.5 h-1.5 rounded-full ${task.status === 'completed' ? 'bg-green-400' :
-                                                            task.status === 'processing' ? 'bg-orange-400' :
-                                                                task.status === 'error' ? 'bg-red-400' : 'bg-gray-400'
+                                                        task.status === 'processing' ? 'bg-orange-400' :
+                                                            task.status === 'error' ? 'bg-red-400' : 'bg-gray-400'
                                                         }`} />
                                                     {task.status}
                                                 </span>
