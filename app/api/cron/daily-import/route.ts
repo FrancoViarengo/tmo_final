@@ -11,6 +11,10 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
     try {
+        console.log("Worker: Checking Auth...");
+        const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        console.log(`Worker: Service Key present? ${!!key} (Starts with: ${key?.substring(0, 5)}...)`);
+
         // 1. Auth Guard
         const authHeader = request.headers.get('authorization');
         if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
