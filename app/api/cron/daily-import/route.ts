@@ -19,7 +19,14 @@ export async function GET(request: Request) {
     try {
         console.log("Worker: Checking Auth...");
         const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-        console.log(`Worker: Service Key present? ${!!key} (Starts with: ${key?.substring(0, 5)}...)`);
+        const isServiceRole = key?.includes('service_role'); // Heuristic check if ENV var name implies it (Wait, no, the CONTENT of the key matter)
+        // Check if the JWT contains 'service_role' payload? No easy way to decode without lib.
+
+        console.log(`Worker: Service Key configured. Length: ${key?.length}`);
+
+        // Debug visibility
+        const { count: debugCount, error: debugErr } = await supabaseAdmin.from('sync_queue').select('*', { count: 'exact', head: true });
+        console.log(`Worker: VISIBILITY TEST - Total Queue items visible: ${debugCount}, Error: ${debugErr?.message}`);
 
         // 1. Auth Guard
         const authHeader = request.headers.get('authorization');
