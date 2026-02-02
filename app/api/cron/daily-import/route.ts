@@ -35,7 +35,7 @@ export async function GET(request: Request) {
                     priority: 5,
                     metadata: { title: m.attributes.title.en || Object.values(m.attributes.title)[0] }
                 }));
-                await (supabaseAdmin.from('sync_queue') as any).upsert(seeds, { onConflict: 'external_id', ignoreDuplicates: true });
+                await (supabaseAdmin.from('sync_queue') as any).upsert(seeds, { onConflict: 'external_id, type', ignoreDuplicates: true });
             }
         }
 
@@ -49,13 +49,16 @@ export async function GET(request: Request) {
             .limit(BATCH_SIZE);
 
         if (taskErr || !tasks || tasks.length === 0) {
+            console.log("Worker: No pending tasks found.");
             return NextResponse.json({ success: true, message: "Queue empty" });
         }
 
+        console.log(`Worker: Processing ${tasks.length} tasks...`);
         const results = [];
 
         for (const task of tasks) {
             try {
+                console.log(`Worker: processing task ${task.id} (${task.type}: ${task.external_id})`);
                 // Mark as processing
                 await (supabaseAdmin.from('sync_queue') as any).update({ status: 'processing', attempts: task.attempts + 1 }).eq('id', task.id);
 
