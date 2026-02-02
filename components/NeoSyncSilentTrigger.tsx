@@ -11,7 +11,7 @@ export default function NeoSyncSilentTrigger() {
     useEffect(() => {
         const triggerSync = async () => {
             const LAST_SYNC_KEY = "neosync_last_internal_tick";
-            const COOLDOWN = 1000 * 60 * 30; // 30 minutes
+            const COOLDOWN = 1000 * 60 * 1; // 1 minute (Turbo Mode)
 
             const lastSync = localStorage.getItem(LAST_SYNC_KEY);
             const now = Date.now();

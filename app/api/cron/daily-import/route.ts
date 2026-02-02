@@ -8,11 +8,6 @@ const supabaseAdmin = createClient(
         auth: {
             autoRefreshToken: false,
             persistSession: false
-        },
-        global: {
-            headers: {
-                Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`
-            }
         }
     }
 );
@@ -42,7 +37,7 @@ export async function GET(request: Request) {
         // if (effectiveCount < 20) { ... }
 
         // 3. PROCESSOR: Pick a batch of tasks
-        const BATCH_SIZE = 50;
+        const BATCH_SIZE = 5;
         const { data: rawTasks, error: taskErr } = await (supabaseAdmin.from('sync_queue') as any)
             .select('*')
             .order('priority', { ascending: false })
