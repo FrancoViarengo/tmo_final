@@ -35,9 +35,11 @@ export async function GET(request: Request) {
         }
 
         // 2. DISCOVERY: Seed the queue if it's low
-        const { count: queueCount } = await (supabaseAdmin.from('sync_queue') as any)
+        const { count: queueCount, error: countErr } = await (supabaseAdmin.from('sync_queue') as any)
             .select('*', { count: 'exact', head: true })
             .eq('status', 'pending');
+
+        console.log(`Worker: Queue Count (Pending): ${queueCount}, Error: ${countErr?.message}`);
 
         if ((queueCount || 0) < 20) {
             console.log("Queue low, seeding with popular series...");
