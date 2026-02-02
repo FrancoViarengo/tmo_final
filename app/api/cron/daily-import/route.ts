@@ -98,7 +98,7 @@ export async function GET(request: Request) {
                     const coverRel = m.relationships.find((r: any) => r.type === 'cover_art');
                     const coverUrl = coverRel ? `https://uploads.mangadex.org/covers/${m.id}/${coverRel.attributes.fileName}.256.jpg` : null;
 
-                    const { data: series } = await (supabaseAdmin.from('series') as any).upsert({
+                    const { data: series, error: upsertErr } = await (supabaseAdmin.from('series') as any).upsert({
                         title: attr.title.en || Object.values(attr.title)[0],
                         description: attr.description.es || attr.description.en || '',
                         slug: `mangadex-${m.id}`,
@@ -107,6 +107,10 @@ export async function GET(request: Request) {
                         external_thumbnail: coverUrl,
                         updated_at: new Date().toISOString()
                     }, { onConflict: 'external_id' }).select().single();
+
+                    if (!series) {
+                        throw new Error(`Failed to create/fetch series: ${attr.title.en || 'Unknown'} (SysError: ${upsertErr?.message})`);
+                    }
 
                     // Queue chapter sync starting from offset 0
                     await (supabaseAdmin.from('sync_queue') as any).upsert({
