@@ -715,6 +715,45 @@ export type Database = {
                 }
                 Relationships: []
             }
+            sync_queue: {
+                Row: {
+                    attempts: number
+                    created_at: string
+                    external_id: string
+                    id: string
+                    last_error: string | null
+                    metadata: Json
+                    priority: number
+                    status: string
+                    type: string
+                    updated_at: string
+                }
+                Insert: {
+                    attempts?: number
+                    created_at?: string
+                    external_id: string
+                    id?: string
+                    last_error?: string | null
+                    metadata?: Json
+                    priority?: number
+                    status?: string
+                    type: string
+                    updated_at?: string
+                }
+                Update: {
+                    attempts?: number
+                    created_at?: string
+                    external_id?: string
+                    id?: string
+                    last_error?: string | null
+                    metadata?: Json
+                    priority?: number
+                    status?: string
+                    type?: string
+                    updated_at?: string
+                }
+                Relationships: []
+            }
             user_badges: {
                 Row: {
                     badge_id: string

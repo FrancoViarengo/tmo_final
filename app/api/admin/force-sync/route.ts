@@ -13,7 +13,7 @@ export async function POST(request: Request) {
         const supabase = createSupabaseRouteClient();
 
         // 1. Add to queue with high priority
-        const { data, error } = await (supabase.from('sync_queue') as any).upsert({
+        const { data, error } = await supabase.from('sync_queue').upsert({
             external_id: manga_id,
             type: 'series',
             priority: priority,

@@ -40,6 +40,7 @@ export async function GET(request: Request) {
         const BATCH_SIZE = 5;
         const { data: rawTasks, error: taskErr } = await (supabaseAdmin.from('sync_queue') as any)
             .select('*')
+            .eq('status', 'pending') // FIX: Only fetch pending tasks
             .order('priority', { ascending: false })
             .order('created_at', { ascending: true })
             .limit(BATCH_SIZE);

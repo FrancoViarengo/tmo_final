@@ -10,26 +10,35 @@ import { useEffect } from "react";
 export default function NeoSyncSilentTrigger() {
     useEffect(() => {
         const triggerSync = async () => {
-            const LAST_SYNC_KEY = "neosync_last_internal_tick";
+            const LAST_SYNC_KEY = "neosync_last_internal_tick_v2"; // RESET CACHE
             const COOLDOWN = 1000 * 60 * 1; // 1 minute (Turbo Mode)
 
             const lastSync = localStorage.getItem(LAST_SYNC_KEY);
             const now = Date.now();
+            const elapsed = lastSync ? now - parseInt(lastSync) : Infinity;
 
-            if (!lastSync || now - parseInt(lastSync) > COOLDOWN) {
+            if (elapsed > COOLDOWN) {
                 try {
+                    console.log("NeoSync: 🟢 Triggering Sync Cycle...");
                     // We call the 'tick' endpoint which doesn't require Vercel Cron secrets
                     // but does require the user to be logged in as Admin (which we just forced)
                     await fetch("/api/admin/neosync/tick", { method: "POST" });
                     localStorage.setItem(LAST_SYNC_KEY, now.toString());
-                    console.log("NeoSync: Autonomous cycle triggered.");
+                    console.log("NeoSync: ✅ Cycle executed. Sleeping for 1 min.");
                 } catch (e) {
-                    // Fail silently in background
+                    console.error("NeoSync: 🔴 Trigger failed", e);
                 }
+            } else {
+                console.log(`NeoSync: ⏳ Waiting... (${Math.round((COOLDOWN - elapsed) / 1000)}s left)`);
             }
         };
 
+        // Initial check
         triggerSync();
+
+        // Loop check every 30 seconds
+        const interval = setInterval(triggerSync, 30000);
+        return () => clearInterval(interval);
     }, []);
 
     return null; // Invisible component
