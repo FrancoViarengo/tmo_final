@@ -25,8 +25,13 @@ export async function GET(request: Request) {
         console.log(`Worker: Service Key configured. Length: ${key?.length}`);
 
         // Debug visibility
-        const { count: debugCount, error: debugErr } = await supabaseAdmin.from('sync_queue').select('*', { count: 'exact', head: true });
-        console.log(`Worker: VISIBILITY TEST - Total Queue items visible: ${debugCount}, Error: ${debugErr?.message}`);
+        const { count: debugCount, data: debugRows, error: debugErr } = await supabaseAdmin
+            .from('sync_queue')
+            .select('external_id, status, type')
+            .limit(10);
+
+        console.log(`Worker: VISIBILITY TEST - visible: ${debugCount}, Error: ${debugErr?.message}`);
+        console.log("Worker: Sample Rows:", JSON.stringify(debugRows));
 
         // 1. Auth Guard
         const authHeader = request.headers.get('authorization');
@@ -58,17 +63,19 @@ export async function GET(request: Request) {
             }
         }
 
-        // 3. PROCESSOR: Pick a batch of tasks
-        const BATCH_SIZE = 5;
-        const { data: tasks, error: taskErr } = await (supabaseAdmin.from('sync_queue') as any)
+        // 3. PROCESSOR: Pick a batch of tasks (Fetch broader scope and filter in memory to bypass DB filter glitches)
+        const BATCH_SIZE = 50; // Fetch more to find pending ones
+        const { data: rawTasks, error: taskErr } = await (supabaseAdmin.from('sync_queue') as any)
             .select('*')
-            .eq('status', 'pending')
             .order('priority', { ascending: false })
             .order('created_at', { ascending: true })
             .limit(BATCH_SIZE);
 
+        // In-memory filter
+        const tasks = rawTasks ? rawTasks.filter((t: any) => t.status === 'pending').slice(0, 5) : [];
+
         if (taskErr || !tasks || tasks.length === 0) {
-            console.log("Worker: No pending tasks found.");
+            console.log("Worker: No pending tasks found (in-memory filtered).");
             return NextResponse.json({ success: true, message: "Queue empty" });
         }
 
