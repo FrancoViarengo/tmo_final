@@ -38,25 +38,11 @@ export async function GET(request: Request) {
         const effectiveCount = (countErr || queueCount === null) ? 999 : queueCount;
         console.log(`Worker: Queue Pending Count: ${queueCount} (Effective: ${effectiveCount}) | Error: ${countErr?.message}`);
 
-        if (effectiveCount < 20) {
-            console.log("Queue low (<20), seeding...");
-            const offset = Math.floor(Math.random() * 500);
-            const popularRes = await fetch(`https://api.mangadex.org/manga?limit=50&offset=${offset}&availableTranslatedLanguage[]=es&order[followedCount]=desc&contentRating[]=safe&contentRating[]=suggestive`);
+        // Disable Seeding Temporarily to drain queue
+        // if (effectiveCount < 20) { ... }
 
-            if (popularRes.ok) {
-                const popularData = await popularRes.json();
-                const seeds = popularData.data.map((m: any) => ({
-                    external_id: m.id,
-                    type: 'series',
-                    priority: 5,
-                    metadata: { title: m.attributes.title.en || Object.values(m.attributes.title)[0] }
-                }));
-                await (supabaseAdmin.from('sync_queue') as any).upsert(seeds, { onConflict: 'external_id, type', ignoreDuplicates: true });
-            }
-        }
-
-        // 3. PROCESSOR: Pick a batch of tasks (Fetch broader scope and filter in memory to bypass DB filter glitches)
-        const BATCH_SIZE = 50; // Fetch more to find pending ones
+        // 3. PROCESSOR: Pick a batch of tasks
+        const BATCH_SIZE = 50;
         const { data: rawTasks, error: taskErr } = await (supabaseAdmin.from('sync_queue') as any)
             .select('*')
             .order('priority', { ascending: false })
@@ -64,7 +50,7 @@ export async function GET(request: Request) {
             .limit(BATCH_SIZE);
 
         // In-memory filter
-        const tasks = rawTasks ? rawTasks.filter((t: any) => t.status === 'pending').slice(0, 5) : [];
+        const tasks = rawTasks ? rawTasks.filter((t: any) => t.status === 'pending').slice(0, 20) : []; // Increase throughput to 20
 
         if (taskErr || !tasks || tasks.length === 0) {
             console.log("Worker: No pending tasks found (in-memory filtered).");
