@@ -47,16 +47,22 @@ export const requireSession = async () => {
 export const requireAdmin = async () => {
   const { session, supabase } = await requireSession();
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', session.user.id)
-    .single();
+  // Check metadata first (faster, no RLS issues)
+  let role = session.user.user_metadata?.role;
 
-  const role = (profile as any)?.role;
+  // If not in metadata, check DB profile
+  if (!role) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', session.user.id)
+      .single();
+    role = (profile as any)?.role;
+  }
+
   if (role !== 'admin' && role !== 'superadmin') {
     throw new Error('Forbidden: Admins only');
   }
 
-  return { session, supabase, profile };
+  return { session, supabase, role };
 };
